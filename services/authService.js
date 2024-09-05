@@ -1,11 +1,8 @@
+const User = require('../models/user');
 const jwt = require('jsonwebtoken');
-const bcryptjs = require('bcryptjs');
-
-// In-memory storage for users
-let users = [];
 
 const generateToken = (user) => {
-  const payload = { id: user.id, email: user.email };
+  const payload = { id: user._id, email: user.email };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 };
 
@@ -17,88 +14,63 @@ const verifyToken = (token) => {
   }
 };
 
-const signup = async (email, password) => {
-  try {
-    const existingUser = users.find(user => user.email === email);
-    if (existingUser) {
-      throw new Error('Email already in use');
+const authService = {
+  signup: async (email, password, name) => {
+    try {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        throw new Error('Email already in use');
+      }
+
+      const newUser = new User({ email, password, name });
+      await newUser.save();
+
+      const token = generateToken(newUser);
+
+      return { success: true, user: { id: newUser._id, email: newUser.email }, token };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
+  },
 
-    const hashedPassword = await bcryptjs.hash(password, 10);
-    const newUser = {
-      id: Date.now().toString(),
-      email,
-      password: hashedPassword,
-      policies: []
-    };
+  loginUser: async (email, password) => {
+    try {
+      const user = await User.findOne({ email });
+      if (!user) {
+        throw new Error('User not found');
+      }
 
-    users.push(newUser);
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        throw new Error('Invalid credentials');
+      }
 
-    const token = generateToken(newUser);
+      const token = generateToken(user);
+      return { success: true, user: { id: user._id, email: user.email }, token };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  },
 
-    return { success: true, user: { id: newUser.id, email: newUser.email }, token };
-  } catch (error) {
-    return { success: false, message: error.message };
+  getUserById: async (userId) => {
+    try {
+      const user = await User.findById(userId).select('-password');
+      if (!user) {
+        throw new Error('User not found');
+      }
+      return { success: true, user };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  },
+
+  getUserByToken: async (token) => {
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return null;
+    }
+    return User.findById(decoded.id).select('-password');
   }
 };
 
-const loginUser = async (email, password) => {
-  try {
-    const user = users.find(user => user.email === email);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const isMatch = await bcryptjs.compare(password, user.password);
-    if (!isMatch) {
-      throw new Error('Invalid credentials');
-    }
-
-    const token = generateToken(user);
-    console.log(token);
-    return { success: true, user: { id: user.id, email: user.email }, token };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
-};
-
-const getUserById = async (userId) => {
-  try {
-    const user = users.find(user => user.id === userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    const { password, ...userWithoutPassword } = user;
-    return { success: true, user: userWithoutPassword };
-  } catch (error) {
-    return { success: false, message: error.message };
-  }
-};
-
-const getUserByToken = async (token) => {
-  const decoded = verifyToken(token);
-  if (!decoded) {
-    return null;
-  }
-  return users.find(user => user.id === decoded.id);
-};
-
-const UserPermissions = {
-  MANAGE_POLICY: 'MANAGE_POLICY',
-  VIEW_POLICY: 'VIEW_POLICY',
-  VIEW_ALL_POLICIES: 'VIEW_ALL_POLICIES'
-};
-
-const hasPermission = (user, permission) => {
-  return user.permissions && user.permissions.includes(permission);
-};
-
-module.exports = {
-  signup,
-  loginUser,
-  getUserById,
-  getUserByToken,
-  verifyToken,
-  hasPermission,
-  UserPermissions
-};
+module.exports = authService;
