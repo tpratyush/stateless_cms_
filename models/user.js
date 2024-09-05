@@ -25,6 +25,18 @@ const userSchema = new mongoose.Schema({
     policyName: String,
     policyAmount: Number,
     policyExpiryDate: Date
+  }],
+  claims: [{
+    policyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Policy'
+    },
+    claimAmount: Number,
+    claimDate: {
+      type: Date,
+      default: Date.now
+    },
+    description: String
   }]
 }, {
   timestamps: true
