@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles/dash_board.css">
+    <title>Account</title>
+</head>
+<body>
+    <div id="viewport">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <header>
+                <a href="#" style="color: #fff; text-decoration: none; font-weight: 900;">Dashboard</a>
+            </header>
+            <ul class="nav">
+                <li><a href="/dashboard/policies"><i class="zmdi zmdi-view-dashboard"></i> Policies</a></li>
+                <li><a href="/dashboard/account"><i class="zmdi zmdi-link"></i> Account</a></li>
+                <li><a href="/dashboard/claims"><i class="zmdi zmdi-widgets"></i> Claims</a></li>
+                <li><button id="logoutButton" class="logout-btn">
+                    <i class="zmdi zmdi-lock"></i> Logout
+                </button></li>
+            </ul>
+        </div>
+        <!-- Content -->
+        <div id="content">
+            <div class="container-fluid">
+                <h1>Account</h1>
+                
+                <!-- Policies Table -->
+                <h2>Your Policies</h2>
+                <div class="table-responsive">
+                    <table id="policy-table">
+                        <thead>
+                            <tr>
+                                <th>Policy Name</th>
+                                <th>Policy Amount</th>
+                                <th>Expiry Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policy-list">
+                            <!-- Policies will be displayed here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Claim History Table -->
+                <h2>Claim History</h2>
+                <div class="table-responsive">
+                    <table id="claim-table">
+                        <thead>
+                            <tr>
+                                <th>Claim ID</th>
+                                <th>Policy Name</th>
+                                <th>Claim Amount</th>
+                                <th>Claim Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="claim-list">
+                            <!-- Claims will be displayed here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function parseJwt(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+                `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        function getUserIdFromToken(token) {
+            try {
+                const decoded = parseJwt(token);
+                return decoded.id; // Adjust based on your token payload structure
+            } catch (error) {
+                console.error('Error decoding token:', error);
+                return null;
+            }
+        }
+
+        async function fetchUserPolicies() {
+            const token = getToken();
+            const userId = getUserIdFromToken(token);
+
+            if (!token || !userId) {
+                console.error('User not logged in');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/policies/user-policies`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ "userId": userId })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Failed to fetch policies:', errorData.message);
+                    return;
+                }
+
+                const data = await response.json();
+                const policyTableBody = document.getElementById('policy-list');
+
+                if (data.length === 0) {
+                    policyTableBody.innerHTML = '<tr><td colspan="4">No policies assigned</td></tr>';
+                    return;
+                }
+
+                policyTableBody.innerHTML = data.map(policy => `
+                    <tr>
+                        <td>${policy.policyName}</td>
+                        <td>$${policy.policyAmount}</td>
+                        <td>${new Date(policy.policyExpiryDate).toLocaleDateString()}</td>
+                        <td>
+                            <button onclick="removePolicy('${policy.policyId}')">Remove</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching policies:', error);
+            }
+        }
+
+        async function fetchUserClaims() {
+            const token = getToken();
+            const userId = getUserIdFromToken(token);
+
+            if (!token || !userId) {
+                console.error('User not logged in');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/claims/user-claims', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Failed to fetch claims:', errorData.message);
+                    return;
+                }
+
+                const data = await response.json();
+                const claimTableBody = document.getElementById('claim-list');
+
+                if (!data.claims || data.claims.length === 0) {
+                    claimTableBody.innerHTML = '<tr><td colspan="5">No claims found</td></tr>';
+                    return;
+                }
+
+                claimTableBody.innerHTML = data.claims.map(claim => `
+                    <tr>
+                        <td>${claim.claimId}</td>
+                        <td>${claim.policyName}</td>
+                        <td>$${claim.claimAmount}</td>
+                        <td>${new Date(claim.claimDate).toLocaleDateString()}</td>
+                        <td>Approved</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching claims:', error);
+            }
+        }
+
+        async function removePolicy(policyId) {
+            const token = getToken();
+            const userId = getUserIdFromToken(token);
+
+            if (!token || !userId) {
+                console.error('User not logged in');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/policies/remove', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ "policyId": policyId, "userId": userId }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(errorData.message || 'Failed to remove policy.');
+                    return;
+                }
+
+                alert('Policy removed successfully!');
+                fetchUserPolicies(); // Refresh the policy list
+            } catch (error) {
+                console.error('Error removing policy:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        async function logout() {
+            const token = getToken();
+            try {
+                const response = await fetch('/user/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                    alert('Failed to log out. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+                alert('An error occurred while logging out. Please try again.');
+            }
+        }
+
+        document.getElementById('logoutButton').addEventListener('click', function(event) {
+            event.preventDefault();
+            logout();
+        });
+
+        // Fetch and display user policies and claims on page load
+        window.onload = function() {
+            fetchUserPolicies();
+            fetchUserClaims();
+        };
+    </script>
+</body>
+</html>
