@@ -1,4 +1,5 @@
 const User = require('../models/user');
+const Policy = require('../models/policy'); 
 
 const claimServices = {
   claimPolicy: async (policyId, userId, claimAmount, description) => {
@@ -58,7 +59,20 @@ const claimServices = {
         return { success: false, message: 'No claims found for this user' };
       }
 
-      return { success: true, claims: user.claims };
+      // Fetch policy details for each claim
+      const claimsWithDetails = await Promise.all(user.claims.map(async (claim) => {
+        const policy = await Policy.findById(claim.policyId);
+        return {
+          claimId: claim._id,
+          policyId: claim.policyId,
+          claimAmount: claim.claimAmount,
+          claimDate: claim.claimDate,
+          policyName: policy ? policy.policyName : 'Unknown Policy',
+          policyAmount: policy ? policy.policyAmount : 0,
+        };
+      }));
+
+      return { success: true, claims: claimsWithDetails };
     } catch (error) {
       console.error('Error fetching user claims:', error);
       return { success: false, message: 'Error retrieving claims', error: error.message };

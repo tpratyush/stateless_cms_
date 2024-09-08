@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles/dash_board.css">
+    <title>Claim Policy</title>
+</head>
+<body>
+    <div id="viewport">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <header>
+                <a href="#" style="color: #fff; text-decoration: none; font-weight: 900;">Dashboard</a>
+            </header>
+            <ul class="nav">
+                <li><a href="/dashboard/policies"><i class="zmdi zmdi-view-dashboard"></i> Policies</a></li>
+                <li><a href="/dashboard/account"><i class="zmdi zmdi-link"></i> Account</a></li>
+                <li><a href="/dashboard/claims"><i class="zmdi zmdi-widgets"></i> Claims</a></li>
+                <li><button id="logoutButton" class="logout-btn">
+                    <i class="zmdi zmdi-lock"></i> Logout
+                </button></li>
+            </ul>
+        </div>
+        <!-- Content -->
+        <div id="content">
+            <div class="container-fluid">
+                <h1>Claim Policy</h1>
+                <!-- Claims Table -->
+                <div class="table-responsive">
+                    <table id="claim-table">
+                        <thead>
+                            <tr>
+                                <th>Policy Name</th>
+                                <th>Policy Amount</th>
+                                <th>Expiry Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="claim-list">
+                            <!-- Claims will be displayed here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function parseJwt(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+                `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        function getUserIdFromToken(token) {
+            try {
+                const decoded = parseJwt(token);
+                return decoded.id; // Adjust based on your token payload structure
+            } catch (error) {
+                console.error('Error decoding token:', error);
+                return null;
+            }
+        }
+
+        async function fetchUserClaims() {
+            const token = getToken();
+            const userId = getUserIdFromToken(token);
+
+            if (!token || !userId) {
+                alert('User not logged in');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/policies/user-policies', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ "userId": userId })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch policies');
+                }
+
+                const policies = await response.json();
+                console.log('Policies:', policies);
+
+                // Update the UI to display the policies
+                const claimList = document.getElementById('claim-list');
+                claimList.innerHTML = '';
+
+                policies.forEach((policy) => {
+                    if (policy.policyAmount > 0) {
+                        const claimItem = document.createElement('tr');
+                        claimItem.id = `policy-row-${policy.policyId._id}`;
+                        claimItem.innerHTML = `
+                            <td>${policy.policyName}</td>
+                            <td>$<span id="policy-amount-${policy.policyId._id}">${policy.policyAmount}</span></td>
+                            <td>${new Date(policy.policyExpiryDate).toLocaleDateString()}</td>
+                            <td>
+                                <input type="number" id="claim-amount-${policy.policyId._id}" placeholder="Enter amount" />
+                                <button onclick="claimPolicy('${policy.policyId._id}')">Claim</button>
+                            </td>
+                        `;
+                        claimList.appendChild(claimItem);
+                    }
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        async function claimPolicy(policyId) {
+            console.log("Button CLICKED");
+            const token = getToken();
+            const userId = getUserIdFromToken(token);
+            const claimAmount = document.getElementById(`claim-amount-${policyId}`).value;
+
+            if (!token || !userId) {
+                alert('User not logged in');
+                return;
+            }
+
+            if (!claimAmount || isNaN(claimAmount) || claimAmount <= 0) {
+                alert('Please enter a valid claim amount');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/claims/claim', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ "policyId": policyId, "userId": userId, "claimAmount": parseFloat(claimAmount) }),
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert(result.message);
+                    fetchUserClaims(); // Refetch the list of policies
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        function updatePolicyAmount(policyId, newAmount) {
+            const policyAmountElement = document.getElementById(`policy-amount-${policyId}`);
+            const policyRow = document.getElementById(`policy-row-${policyId}`);
+
+            if (newAmount > 0) {
+                policyAmountElement.textContent = newAmount;
+            } else {
+                policyRow.remove(); // Completely remove the row instead of just hiding it
+            }
+        }
+
+        async function logout() {
+            const token = getToken();
+            try {
+                const response = await fetch('/user/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                    alert('Failed to log out. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+                alert('An error occurred while logging out. Please try again.');
+            }
+        }
+
+        document.getElementById('logoutButton').addEventListener('click', function(event) {
+            event.preventDefault();
+            logout();
+        });
+
+        // Fetch and display user claims on page load
+        window.onload = fetchUserClaims;
+    </script>
+</body>
+</html>

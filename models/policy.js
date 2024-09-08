@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const policySchema = new mongoose.Schema({
+  policyId: {
+    type: String,
+    required: true,
+    unique: true
+  },
   policyName: {
     type: String,
     required: true

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles/dash_board.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/material-design-iconic-font/2.2.0/css/material-design-iconic-font.min.css">
+    <title>Dashboard</title>
+</head>
+<body>
+    <div id="viewport">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <header>
+                <a href="#" style="color: #fff; text-decoration: none; font-weight: 900;">Dashboard</a>
+            </header>
+            <ul class="nav">
+                <li>
+                    <a href="/dashboard/policies">
+                        <i class="zmdi zmdi-view-dashboard"></i> Policies
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/account">
+                        <i class="zmdi zmdi-account"></i> Account
+                    </a>
+                </li>
+                <li>
+                    <a href="/dashboard/claims">
+                        <i class="zmdi zmdi-file-text"></i> Claims
+                    </a>
+                </li>
+                <li>
+                    <button id="logoutButton" class="logout-btn">
+                        <i class="zmdi zmdi-lock"></i> Logout
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <!-- Content -->
+        <div id="content">
+            <div class="container-fluid">
+                <h1>Claims Management System By: Pratyush</h1>
+                <!-- Add your dashboard content here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function logout() {
+            try {
+                const response = await fetch('/user/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    localStorage.removeItem('userId');
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                    alert('Failed to log out. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+                alert('An error occurred while logging out. Please try again.');
+            }
+        }
+
+        document.getElementById('logoutButton').addEventListener('click', function(event) {
+            event.preventDefault();
+            logout();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles/dash_board.css">
+    <title>Policies</title>
+</head>
+<body>
+    <div id="viewport">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <header>
+                <a href="#" style="color: #fff; text-decoration: none; font-weight: 900;">Dashboard</a>
+            </header>
+            <ul class="nav">
+                <li><a href="/dashboard/policies"><i class="zmdi zmdi-view-dashboard"></i> Policies</a></li>
+                <li><a href="/dashboard/account"><i class="zmdi zmdi-link"></i> Account</a></li>
+                <li><a href="/dashboard/claims"><i class="zmdi zmdi-widgets"></i> Claims</a></li>
+                <li><button id="logoutButton" class="logout-btn">
+                    <i class="zmdi zmdi-lock"></i> Logout
+                </button></li>
+            </ul>
+        </div>
+        <!-- Content -->
+        <div id="content">
+            <div class="container-fluid">
+                <h1>Policies</h1>
+                
+                <!-- Policies Table -->
+                <div class="table-responsive">
+                    <table id="policy-table">
+                        <thead>
+                            <tr>
+                                <th>Policy Name</th>
+                                <th>Policy Amount</th>
+                                <th>Expiry Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policy-list">
+                            <!-- Policies will be displayed here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function parseJwt(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+                `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
+
+            return JSON.parse(jsonPayload);
+        }
+
+        function getUserIdFromToken(token) {
+            try {
+                const decoded = parseJwt(token);
+                return decoded.id; // Adjust based on your token payload structure
+            } catch (error) {
+                console.error('Error decoding token:', error);
+                return null;
+            }
+        }
+
+        async function fetchPolicies() {
+            const token = getToken();
+            if (!token) {
+                alert('User not logged in');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/policies', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch policies');
+                }
+
+                const policies = await response.json();
+
+                const policyList = document.getElementById('policy-list');
+                policyList.innerHTML = '';
+
+                policies.forEach((policy) => {
+                    const policyItem = document.createElement('tr');
+                    policyItem.innerHTML = `
+                        <td>${policy.policyName}</td>
+                        <td>$${policy.policyAmount.toFixed(2)}</td>
+                        <td>${new Date(policy.policyExpiryDate).toLocaleDateString()}</td>
+                        <td><button onclick="addPolicy('${policy._id}')">Purchase</button></td>
+                    `;
+                    policyList.appendChild(policyItem);
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        async function addPolicy(policyId) {
+            const token = getToken();
+            if (!token) {
+                alert('User not logged in');
+                return;
+            }
+
+            const userId = getUserIdFromToken(token);
+            if (!userId) {
+                alert('Unable to get user ID from token');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/policies/assign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ "policyId": policyId, "userId": userId }),
+                });
+
+                if (response.ok) {
+                    alert('Policy Purchased successfully!');
+                    fetchPolicies(); // Refresh the policy list
+                } else {
+                    const result = await response.json();
+                    alert(result.message || 'Error adding policy');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        async function logout() {
+            try {
+                const response = await fetch('/user/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                    alert('Failed to log out. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+                alert('An error occurred while logging out. Please try again.');
+            }
+        }
+
+        document.getElementById('logoutButton').addEventListener('click', function(event) {
+            event.preventDefault();
+            logout();
+        });
+
+        fetchPolicies();
+    </script>
+
+</body>
+</html>
