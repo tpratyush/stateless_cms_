@@ -9,6 +9,8 @@ const { connectToDatabase } = require('./config/db');
 const authenticateJWT = require('./services/authMiddle');
 const client = require('prom-client');
 
+const cors = require('cors');
+
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const policyRoutes = require('./routes/policyRoutes');
@@ -20,7 +22,8 @@ dotenv.config();
 const app = express();
 const register = new client.Registry();
 const collectDefaultMetrics = client.collectDefaultMetrics;
-
+// Use the CORS middleware
+app.use(cors());
 // Collect default metrics (CPU, memory, etc.)
 collectDefaultMetrics({ register });
 
