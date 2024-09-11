@@ -140,7 +140,7 @@
 
         async function removePolicy(policyId) {
             const token = getToken();
-            const userId = getUserIdFromToken(token);
+            const userId = getUserIdFromToken(token); 
 
             if (!token || !userId) {
                 alert('User not logged in');
@@ -172,8 +172,50 @@
         }
 
         async function fetchUserClaims() {
-            // Implement this function to fetch and display user claims
+            const token = getToken();
+            const userId = getUserIdFromToken(token);
+
+            if (!token || !userId) {
+                console.error('User not logged in');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/claims/user-claims', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Failed to fetch claims:', errorData.message);
+                    return;
+                }
+
+                const data = await response.json();
+                const claimTableBody = document.getElementById('claim-list');
+
+                if (!data.claims || data.claims.length === 0) {
+                    claimTableBody.innerHTML = '<tr><td colspan="5">No claims found</td></tr>';
+                    return;
+                }
+
+                claimTableBody.innerHTML = data.claims.map(claim => `
+                    <tr>
+                        <td>${claim.claimId}</td>
+                        <td>${claim.policyName}</td>
+                        <td>$${claim.claimAmount}</td>
+                        <td>${new Date(claim.claimDate).toLocaleDateString()}</td>
+                        <td>Approved</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching claims:', error);
+            }
         }
+        
 
         async function logout() {
             const token = getToken();
